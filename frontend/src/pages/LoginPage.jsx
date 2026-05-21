@@ -1,47 +1,103 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/AuthContext';
 import { DollarSign, AlertCircle } from 'lucide-react';
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, register } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const { login, googleLogin } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const googleButtonRef = useRef(null);
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !googleButtonRef.current) {
+      return undefined;
+    }
+
+    let isActive = true;
+
+    const handleGoogleCredential = async (response) => {
+      if (!response?.credential || !isActive) {
+        return;
+      }
+
+      setError('');
+      setLoading(true);
+
+      try {
+        await googleLogin(response.credential);
+        navigate('/');
+      } catch (err) {
+        setError(err.message || 'Google sign-in failed');
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
+    };
+
+    const renderGoogleButton = () => {
+      if (!window.google?.accounts?.id || !googleButtonRef.current || !isActive) {
+        return;
+      }
+
+      googleButtonRef.current.innerHTML = '';
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: 'outline',
+        size: 'large',
+        text: 'continue_with',
+        width: 320
+      });
+    };
+
+    const existingScript = document.querySelector(`script[src="${GOOGLE_SCRIPT_SRC}"]`);
+    let handleScriptLoad = null;
+
+    if (existingScript && window.google?.accounts?.id) {
+      renderGoogleButton();
+    } else if (existingScript) {
+      handleScriptLoad = () => renderGoogleButton();
+      existingScript.addEventListener('load', handleScriptLoad);
+    } else {
+      const script = document.createElement('script');
+      script.src = GOOGLE_SCRIPT_SRC;
+      script.async = true;
+      script.defer = true;
+      script.onload = renderGoogleButton;
+      document.body.appendChild(script);
+    }
+
+    return () => {
+      isActive = false;
+      if (existingScript && handleScriptLoad) {
+        existingScript.removeEventListener('load', handleScriptLoad);
+      }
+    };
+  }, [googleLogin, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setLoading(true);
 
     try {
-      if (isLogin) {
-        await login(email, password);
-        navigate('/');
-      } else {
-        const result = await register(email, password, name);
-        setSuccess(result.message || 'Registration created. Check your email to activate your account.');
-        setIsLogin(true);
-        setPassword('');
-      }
+      await login(email, password);
+      navigate('/');
     } catch (err) {
       setError(err.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Default credentials for easy testing
-  const fillDemoCredentials = () => {
-    setEmail('admin@example.com');
-    setPassword('admin123');
-    setName('');
   };
 
   return (
@@ -58,34 +114,9 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="bg-white rounded-lg shadow-lg p-8">
-          {/* Toggle */}
-          <div className="flex gap-4 mb-6">
-            <button
-              onClick={() => {
-                setIsLogin(true);
-                setSuccess('');
-              }}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                isLogin
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Login
-            </button>
-            <button
-              onClick={() => {
-                setIsLogin(false);
-                setSuccess('');
-              }}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                !isLogin
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Register
-            </button>
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Sign in</h2>
+            <p className="text-sm text-gray-600 mt-1">Use your email and password, or continue with Google.</p>
           </div>
 
           {/* Error Alert */}
@@ -96,30 +127,8 @@ export default function LoginPage() {
             </div>
           )}
 
-          {success && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm text-green-800">{success}</p>
-            </div>
-          )}
-
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Your name"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-            )}
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Email
@@ -153,43 +162,25 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Loading...' : isLogin ? 'Sign In' : 'Create Account'}
+              {loading ? 'Loading...' : 'Sign In'}
             </button>
           </form>
 
-          {/* Demo Credentials */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-sm text-gray-600 mb-3">Demo credentials:</p>
-            <div className="space-y-2">
-              <button
-                onClick={fillDemoCredentials}
-                className="w-full text-sm px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-medium transition-colors text-left"
-              >
-                👤 Admin: admin@example.com
-              </button>
-              <button
-                onClick={() => {
-                  setEmail('usera@example.com');
-                  setPassword('password123');
-                  setName('');
-                }}
-                className="w-full text-sm px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-medium transition-colors text-left"
-              >
-                👤 User A: usera@example.com
-              </button>
-              <button
-                onClick={() => {
-                  setEmail('userb@example.com');
-                  setPassword('password123');
-                  setName('');
-                }}
-                className="w-full text-sm px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-medium transition-colors text-left"
-              >
-                👤 User B: userb@example.com
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-2">Password for all demo accounts: their password or admin123</p>
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">or</span>
+            <div className="h-px flex-1 bg-gray-200" />
           </div>
+
+          {GOOGLE_CLIENT_ID ? (
+            <div className="flex justify-center">
+              <div ref={googleButtonRef} className="min-h-[44px]" />
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center">
+              Google sign-in is available after you set <code>VITE_GOOGLE_CLIENT_ID</code> in the frontend environment.
+            </p>
+          )}
         </div>
       </div>
     </div>

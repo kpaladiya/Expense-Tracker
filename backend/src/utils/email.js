@@ -45,6 +45,9 @@ function createTransporter() {
   const port = Number(process.env.SMTP_PORT || 587);
   const secure = process.env.SMTP_SECURE === 'true' || port === 465;
   const ignoreTLS = process.env.SMTP_IGNORE_TLS === 'true';
+  const connectionTimeout = Number(process.env.SMTP_CONNECTION_TIMEOUT || 15000);
+  const greetingTimeout = Number(process.env.SMTP_GREETING_TIMEOUT || 10000);
+  const socketTimeout = Number(process.env.SMTP_SOCKET_TIMEOUT || 20000);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 
@@ -57,6 +60,9 @@ function createTransporter() {
     port,
     secure,
     ignoreTLS,
+    connectionTimeout,
+    greetingTimeout,
+    socketTimeout,
     auth: user && pass ? { user, pass } : undefined
   });
 }

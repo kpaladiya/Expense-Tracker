@@ -46,9 +46,17 @@ export async function ensureUserVerificationColumns(db) {
     await run(db, 'ALTER TABLE users ADD COLUMN email_verification_sent_at DATETIME');
   }
 
+  if (!columnNames.has('google_id')) {
+    await run(db, 'ALTER TABLE users ADD COLUMN google_id TEXT');
+  }
+
   await run(
     db,
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_verification_token ON users(email_verification_token)'
+  );
+  await run(
+    db,
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)'
   );
 
   if (addedEmailVerified) {

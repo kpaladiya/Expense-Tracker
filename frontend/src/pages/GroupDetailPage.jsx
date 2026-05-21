@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, CheckCircle2, Clock3, Plus, TrendingUp, Users, XCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock3, Plus, TrendingUp, UserCircle2, Users, XCircle } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
 import { expensesAPI, groupsAPI, paymentsAPI, settlementAPI } from '../services/api';
 
@@ -321,13 +321,22 @@ export default function GroupDetailPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <button
-            onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
-          </button>
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <button
+              onClick={() => navigate('/')}
+              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Dashboard
+            </button>
+            <button
+              onClick={() => navigate('/profile')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <UserCircle2 className="w-4 h-4" />
+              Profile
+            </button>
+          </div>
 
           <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start">
             <div>

@@ -52,16 +52,36 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const register = async (email, password, name) => {
+  const googleLogin = async (credential) => {
     try {
       setError(null);
-      const result = await authAPI.register(email, password, name);
-      
+      const result = await authAPI.googleLogin(credential);
+
       if (result.success) {
-        return result;
-      } else {
-        throw new Error(result.error);
+        localStorage.setItem('token', result.data.token);
+        setUser(result.data);
+        return result.data;
       }
+
+      throw new Error(result.error);
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  };
+
+  const updateProfile = async (data) => {
+    try {
+      setError(null);
+      const result = await authAPI.updateProfile(data);
+
+      if (result.success) {
+        localStorage.setItem('token', result.data.token);
+        setUser(result.data);
+        return result.data;
+      }
+
+      throw new Error(result.error);
     } catch (err) {
       setError(err.message);
       throw err;
@@ -80,7 +100,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, login, googleLogin, updateProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );

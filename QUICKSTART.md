@@ -7,7 +7,7 @@
 cd backend
 npm install
 npm run db:init
-npm run dev
+PORT=5001 npm run dev
 
 # Terminal 2: Frontend (open new terminal)
 cd frontend
@@ -15,24 +15,20 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5173 and login with:
-- Email: `admin@example.com`
-- Password: `admin123`
+Then open http://localhost:5173 and:
+- register your first account, or
+- continue with Google after setting `VITE_GOOGLE_CLIENT_ID`
 
 ## Structure
 
 ```
-Backend:  http://localhost:5000  (Express + SQLite)
+Backend:  http://localhost:5001  (Express + SQLite)
 Frontend: http://localhost:5173  (React + Tailwind)
 ```
 
 ## Database
 
-Auto-initialized with:
-- ✅ 4 demo users (admin + 3 regular users)
-- ✅ 1 sample group: "Tech Startup"
-- ✅ Sample expenses and payments
-- ✅ Ready to test settlement calculation
+`npm run db:init` creates the schema only. Create your own account from the app.
 
 ## Features Ready
 
@@ -42,17 +38,6 @@ Auto-initialized with:
 - ✅ Payment recording (cash/PayPal)
 - ✅ Automatic settlement calculation
 - ✅ Beautiful UI with Tailwind CSS
-
-## Demo Accounts
-
-| Email | Password | Role |
-|-------|----------|------|
-| admin@example.com | admin123 | Admin |
-| usera@example.com | password123 | User |
-| userb@example.com | password123 | User |
-| userc@example.com | password123 | User |
-
-All are members of "Tech Startup" group.
 
 ## Key API Endpoints
 
@@ -99,18 +84,18 @@ GET    /api/settlement/group/:id    # Get settlement
 
 | Issue | Solution |
 |-------|----------|
-| Port 5000 in use | `sudo lsof -i :5000` then `kill -9 <PID>` |
+| Port 5000 in use | Run backend on another port, e.g. `PORT=5001 npm run dev` |
 | Port 5173 in use | `sudo lsof -i :5173` then `kill -9 <PID>` |
-| Can't connect | Check backend is running on port 5000 |
+| Can't connect | Check backend is running on the port used by `VITE_API_URL` |
 | DB error | `rm backend/data/app.db` then `npm run db:init` |
 | CORS error | Check CORS_ORIGIN in backend/.env |
 
 ## Testing Checklist
 
-- [ ] Backend starts on :5000
+- [ ] Backend starts on :5001
 - [ ] Frontend starts on :5173
-- [ ] Can login with admin account
-- [ ] Dashboard loads with "Tech Startup" group
+- [ ] Can register or sign in with Google
+- [ ] Dashboard loads after login
 - [ ] Can view group details
 - [ ] Can view settlement calculation
 - [ ] Settlement math is correct

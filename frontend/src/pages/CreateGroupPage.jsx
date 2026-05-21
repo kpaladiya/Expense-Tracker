@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { groupsAPI } from '../services/api';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, UserCircle2 } from 'lucide-react';
 
 export default function CreateGroupPage() {
   const navigate = useNavigate();
@@ -39,13 +39,20 @@ export default function CreateGroupPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
           <button
             onClick={() => navigate('/')}
             className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
+          </button>
+          <button
+            onClick={() => navigate('/profile')}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <UserCircle2 className="w-4 h-4" />
+            Profile
           </button>
         </div>
       </header>

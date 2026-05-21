@@ -6,6 +6,7 @@ import ActivateAccountPage from './pages/ActivateAccountPage';
 import DashboardPage from './pages/DashboardPage';
 import GroupDetailPage from './pages/GroupDetailPage';
 import CreateGroupPage from './pages/CreateGroupPage';
+import ProfilePage from './pages/ProfilePage';
 import './index.css';
 
 // Protected Route Component
@@ -71,6 +72,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <GroupDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
           </ProtectedRoute>
         }
       />

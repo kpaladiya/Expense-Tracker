@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
+  google_id TEXT UNIQUE,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
   is_admin INTEGER DEFAULT 0,

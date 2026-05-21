@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowRight, BarChart3, CheckCircle2, Mail, Users, XCircle } from 'lucide-react';
+import { AlertCircle, ArrowRight, BarChart3, CheckCircle2, Mail, UserCircle2, Users, XCircle } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
 import { groupsAPI, settlementAPI } from '../services/api';
 
@@ -93,12 +93,21 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold text-gray-900">Shared Expenses</h1>
             <p className="text-sm text-gray-600">Welcome, {user?.name}</p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/profile')}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <UserCircle2 className="w-4 h-4" />
+              Profile
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
