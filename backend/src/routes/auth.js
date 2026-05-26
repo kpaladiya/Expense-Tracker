@@ -27,18 +27,166 @@ function createVerificationToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-function getGoogleClientId() {
-  return process.env.GOOGLE_CLIENT_ID;
+function getGoogleClientIds() {
+  return [
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_IOS_CLIENT_ID,
+    process.env.GOOGLE_ANDROID_CLIENT_ID
+  ].filter(Boolean);
 }
 
-function createGoogleClient() {
-  const clientId = getGoogleClientId();
-
-  if (!clientId) {
+function getGoogleWebClientId() {
+  if (!process.env.GOOGLE_CLIENT_ID) {
     throw new Error('Google sign-in is not configured. Set GOOGLE_CLIENT_ID in backend/.env.');
   }
 
-  return new OAuth2Client(clientId);
+  return process.env.GOOGLE_CLIENT_ID;
+}
+
+function isAllowedMobileReturnUrl(returnUrl) {
+  try {
+    const parsed = new URL(returnUrl);
+    return ['exp:', 'exps:', 'sharedexpenses:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function buildMobileGoogleStartPage({ clientId, returnUrl }) {
+  const safeClientId = JSON.stringify(clientId);
+  const safeReturnUrl = JSON.stringify(returnUrl);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shared Expenses - Google Sign-In</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #eff6ff, #eef2ff);
+        color: #111827;
+      }
+      .card {
+        width: min(92vw, 420px);
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.16);
+        padding: 32px 24px;
+        text-align: center;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+      p {
+        margin: 0 0 20px;
+        line-height: 1.5;
+        color: #4b5563;
+      }
+      #google-button {
+        display: flex;
+        justify-content: center;
+        min-height: 44px;
+      }
+      #status {
+        min-height: 24px;
+        margin-top: 16px;
+        font-size: 14px;
+        color: #dc2626;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Shared Expenses</h1>
+      <p>Continue with Google to sign in on your iPhone and return to the app.</p>
+      <div id="google-button"></div>
+      <div id="status" role="alert"></div>
+    </main>
+    <script>
+      const clientId = ${safeClientId};
+      const returnUrl = ${safeReturnUrl};
+      const statusNode = document.getElementById('status');
+
+      function setStatus(message) {
+        statusNode.textContent = message || '';
+      }
+
+      async function handleGoogleCredential(response) {
+        if (!response || !response.credential) {
+          setStatus('Google did not return a valid credential.');
+          return;
+        }
+
+        setStatus('Signing you in...');
+
+        try {
+          const result = await fetch('/api/auth/google', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ credential: response.credential })
+          });
+
+          const payload = await result.json().catch(() => null);
+
+          if (!result.ok || !payload?.data?.token) {
+            throw new Error(payload?.error || 'Google sign-in failed');
+          }
+
+          const destination = new URL(returnUrl);
+          destination.searchParams.set('token', payload.data.token);
+          window.location.replace(destination.toString());
+        } catch (error) {
+          setStatus(error.message || 'Google sign-in failed.');
+        }
+      }
+
+      function renderGoogleButton() {
+        if (!window.google?.accounts?.id) {
+          setStatus('Google sign-in is still loading. Please wait a moment.');
+          return;
+        }
+
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredential
+        });
+
+        window.google.accounts.id.renderButton(document.getElementById('google-button'), {
+          theme: 'outline',
+          size: 'large',
+          text: 'continue_with',
+          width: 300
+        });
+      }
+
+      window.addEventListener('load', renderGoogleButton);
+    </script>
+  </body>
+</html>`;
+}
+
+function createGoogleClient() {
+  const clientIds = getGoogleClientIds();
+
+  if (clientIds.length === 0) {
+    throw new Error('Google sign-in is not configured. Set GOOGLE_CLIENT_ID in backend/.env.');
+  }
+
+  return new OAuth2Client();
 }
 
 function buildAuthPayload(user) {
@@ -56,7 +204,8 @@ function buildUserData(user) {
     email: user.email,
     name: user.name,
     isAdmin: user.is_admin === 1,
-    googleLinked: Boolean(user.google_id)
+    googleLinked: Boolean(user.google_id),
+    onboardingCompleted: user.onboarding_completed === 1
   };
 }
 
@@ -112,7 +261,7 @@ async function createAndSendVerificationEmail({ userId, email, name, passwordHas
 
 async function findUserByGoogleIdentity(googleId, email) {
   const userByGoogleId = await get(
-    'SELECT id, email, name, password_hash, is_admin, email_verified, google_id FROM users WHERE google_id = ?',
+    'SELECT id, email, name, password_hash, is_admin, onboarding_completed, email_verified, google_id FROM users WHERE google_id = ?',
     [googleId]
   );
 
@@ -121,7 +270,7 @@ async function findUserByGoogleIdentity(googleId, email) {
   }
 
   return get(
-    'SELECT id, email, name, password_hash, is_admin, email_verified, google_id FROM users WHERE email = ?',
+    'SELECT id, email, name, password_hash, is_admin, onboarding_completed, email_verified, google_id FROM users WHERE email = ?',
     [email]
   );
 }
@@ -266,7 +415,7 @@ router.post('/login', async (req, res) => {
 
     const normalizedEmail = normalizeEmail(email);
     const user = await get(
-      'SELECT id, email, name, password_hash, is_admin, email_verified, google_id FROM users WHERE email = ?',
+      'SELECT id, email, name, password_hash, is_admin, onboarding_completed, email_verified, google_id FROM users WHERE email = ?',
       [normalizedEmail]
     );
 
@@ -317,7 +466,7 @@ router.post('/google', async (req, res) => {
     const googleClient = createGoogleClient();
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
-      audience: getGoogleClientId()
+      audience: getGoogleClientIds()
     });
     const payload = ticket.getPayload();
 
@@ -378,7 +527,7 @@ router.post('/google', async (req, res) => {
     );
 
     const user = await get(
-      'SELECT id, email, name, is_admin FROM users WHERE id = ?',
+      'SELECT id, email, name, is_admin, onboarding_completed FROM users WHERE id = ?',
       [existingUser.id]
     );
 
@@ -397,6 +546,23 @@ router.post('/google', async (req, res) => {
   }
 });
 
+router.get('/mobile/google/start', (req, res) => {
+  try {
+    const returnUrl = String(req.query.returnUrl || '');
+
+    if (!isAllowedMobileReturnUrl(returnUrl)) {
+      return res.status(400).type('html').send('<h1>Invalid return URL</h1>');
+    }
+
+    const clientId = getGoogleWebClientId();
+
+    res.type('html').send(buildMobileGoogleStartPage({ clientId, returnUrl }));
+  } catch (error) {
+    console.error('Mobile Google start error:', error);
+    res.status(500).type('html').send('<h1>Google sign-in is not configured.</h1>');
+  }
+});
+
 router.post('/logout', authenticateToken, (req, res) => {
   res.json({
     success: true,
@@ -406,7 +572,7 @@ router.post('/logout', authenticateToken, (req, res) => {
 
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
-    const { name, password } = req.body;
+    const { name, password, onboardingCompleted } = req.body;
     const updates = [];
     const params = [];
 
@@ -436,6 +602,12 @@ router.put('/profile', authenticateToken, async (req, res) => {
       params.push(bcrypt.hashSync(password, 10));
     }
 
+    if (onboardingCompleted !== undefined) {
+      updates.push('onboarding_completed = ?');
+      params.push(onboardingCompleted ? 1 : 0);
+      updates.push('onboarding_seen_at = CURRENT_TIMESTAMP');
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({
         success: false,
@@ -453,7 +625,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
     );
 
     const user = await get(
-      'SELECT id, email, name, is_admin, google_id FROM users WHERE id = ?',
+      'SELECT id, email, name, is_admin, google_id, onboarding_completed FROM users WHERE id = ?',
       [req.user.id]
     );
 
@@ -470,7 +642,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const user = await get(
-      'SELECT id, email, name, is_admin, google_id FROM users WHERE id = ?',
+      'SELECT id, email, name, is_admin, google_id, onboarding_completed FROM users WHERE id = ?',
       [req.user.id]
     );
 

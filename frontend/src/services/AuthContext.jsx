@@ -10,24 +10,35 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null);
 
   // Check if user is already logged in
+  const refreshUser = async () => {
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      setUser(null);
+      return null;
+    }
+
+    try {
+      const result = await authAPI.getCurrentUser();
+      if (result.success) {
+        setUser(result.data);
+        return result.data;
+      }
+
+      localStorage.removeItem('token');
+      setUser(null);
+      return null;
+    } catch (err) {
+      console.error('Auth check error:', err);
+      localStorage.removeItem('token');
+      setUser(null);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
-      
-      if (token) {
-        try {
-          const result = await authAPI.getCurrentUser();
-          if (result.success) {
-            setUser(result.data);
-          } else {
-            localStorage.removeItem('token');
-          }
-        } catch (err) {
-          console.error('Auth check error:', err);
-          localStorage.removeItem('token');
-        }
-      }
-      
+      await refreshUser();
       setLoading(false);
     };
 
@@ -100,7 +111,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, googleLogin, updateProfile, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, login, googleLogin, updateProfile, refreshUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

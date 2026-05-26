@@ -2,7 +2,21 @@ import sqlite3 from 'sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { ensureUserVerificationColumns } from './migrations.js';
+import {
+  ensureActivityLogsTable,
+  ensureExpensePaymentAttachmentColumns,
+  ensureFeedbackSupportTable,
+  ensureGroupCurrencyColumn,
+  ensureGroupDisabledColumns,
+  ensureGroupDeleteApprovalTables,
+  ensureGroupMemberRoleColumn,
+  ensureInboxNotificationsTable,
+  ensureMemberRemovalTable,
+  ensureMembershipPeriodsTable,
+  ensureRecurringTemplatesTable,
+  ensureUndoActionsTable,
+  ensureUserVerificationColumns
+} from './migrations.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEMO_EMAILS = [
@@ -162,7 +176,19 @@ db.exec(schema, async (err) => {
   console.log('✓ Database schema created');
 
   try {
+    await ensureGroupCurrencyColumn(db);
+    await ensureGroupDisabledColumns(db);
     await ensureUserVerificationColumns(db);
+    await ensureFeedbackSupportTable(db);
+    await ensureMemberRemovalTable(db);
+    await ensureMembershipPeriodsTable(db);
+    await ensureGroupDeleteApprovalTables(db);
+    await ensureGroupMemberRoleColumn(db);
+    await ensureExpensePaymentAttachmentColumns(db);
+    await ensureInboxNotificationsTable(db);
+    await ensureActivityLogsTable(db);
+    await ensureRecurringTemplatesTable(db);
+    await ensureUndoActionsTable(db);
     const removedDemoData = await removeLegacyDemoData();
     const row = await getAsync('SELECT COUNT(*) as count FROM users');
 

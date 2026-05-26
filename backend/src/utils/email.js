@@ -67,22 +67,80 @@ function createTransporter() {
   });
 }
 
-export function getActivationBaseUrl() {
-  return process.env.APP_BASE_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
-}
-
-export async function sendActivationEmail({ email, name, token }) {
-  const transporter = createTransporter();
+function getFromAddress() {
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
 
   if (!from) {
     throw new Error('Missing required email configuration: SMTP_FROM');
   }
 
-  const activationUrl = `${getActivationBaseUrl().replace(/\/$/, '')}/activate?token=${token}`;
+  return from;
+}
+
+export function isEmailConfigurationErrorMessage(message) {
+  return (
+    message === 'Email delivery is not configured. Update SMTP settings in backend/.env.' ||
+    message?.startsWith('Missing required email configuration:') ||
+    message === 'SMTP_USER and SMTP_PASS must both be set when using authenticated SMTP'
+  );
+}
+
+export function getActivationBaseUrl() {
+  return process.env.APP_BASE_URL || process.env.CORS_ORIGIN || 'http://localhost:5173';
+}
+
+function withEmailSignature({ text, html }) {
+  const appUrl = getActivationBaseUrl().replace(/\/$/, '');
+  const textSignature = [
+    '',
+    'Thank you,',
+    'Shared Expenses Team',
+    'sharedexpenses01@gmail.com',
+    `App: ${appUrl}`,
+    '',
+    'This is an automated email from Shared Expenses.'
+  ].join('\n');
+
+  const htmlSignature = `
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;color:#4b5563;">
+      <p style="margin:0 0 8px 0;">Thank you,</p>
+      <p style="margin:0;"><strong>Shared Expenses Team</strong></p>
+      <p style="margin:4px 0 0 0;">
+        <a href="mailto:sharedexpenses01@gmail.com">sharedexpenses01@gmail.com</a>
+      </p>
+      <p style="margin:4px 0 0 0;">
+        <a href="${appUrl}">${appUrl}</a>
+      </p>
+      <p style="margin:12px 0 0 0;font-size:12px;color:#6b7280;">
+        This is an automated email from Shared Expenses.
+      </p>
+    </div>
+  `;
+
+  return {
+    text: text ? `${text.trimEnd()}\n\n${textSignature}` : undefined,
+    html: html ? `${html.trim()}\n${htmlSignature}` : undefined
+  };
+}
+
+export async function sendEmail({ to, subject, text, html }) {
+  const transporter = createTransporter();
+  const from = getFromAddress();
+  const messageWithSignature = withEmailSignature({ text, html });
 
   await transporter.sendMail({
     from,
+    to,
+    subject,
+    text: messageWithSignature.text,
+    html: messageWithSignature.html
+  });
+}
+
+export async function sendActivationEmail({ email, name, token }) {
+  const activationUrl = `${getActivationBaseUrl().replace(/\/$/, '')}/activate?token=${token}`;
+
+  await sendEmail({
     to: email,
     subject: 'Activate your Shared Expenses account',
     text: `Hi ${name},\n\nActivate your Shared Expenses account by opening this link:\n${activationUrl}\n\nThis link expires in 24 hours.`,

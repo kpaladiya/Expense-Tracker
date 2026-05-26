@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Shared Expenses",
+    "slug": "shared-expenses-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "sharedexpenses",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kpaladiya.sharedexpenses",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-dev-client",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "apiUrl": "Set EXPO_PUBLIC_API_URL before running on a real device.",
+      "eas": {
+        "projectId": "31a9d211-ae9a-4e28-b641-11c2c0c96323"
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage';
 import GroupDetailPage from './pages/GroupDetailPage';
 import CreateGroupPage from './pages/CreateGroupPage';
 import ProfilePage from './pages/ProfilePage';
+import InfoPage from './pages/InfoPage';
 import './index.css';
 
 // Protected Route Component
@@ -47,6 +48,10 @@ function AppRoutes() {
         element={user ? <Navigate to="/" replace /> : <LoginPage />}
       />
       <Route path="/activate" element={<ActivateAccountPage />} />
+      <Route path="/terms" element={<InfoPage pageKey="terms" />} />
+      <Route path="/privacy" element={<InfoPage pageKey="privacy" />} />
+      <Route path="/help" element={<InfoPage pageKey="help" />} />
+      <Route path="/feedback" element={<InfoPage pageKey="feedback" />} />
 
       {/* Protected Routes */}
       <Route

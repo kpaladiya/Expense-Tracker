@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { groupsAPI } from '../services/api';
 import { ArrowLeft, AlertCircle, UserCircle2 } from 'lucide-react';
+import SiteFooter from '../components/SiteFooter';
+import { CURRENCY_OPTIONS } from '../utils/currency';
 
 export default function CreateGroupPage() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [currency, setCurrency] = useState('EUR');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -21,7 +24,7 @@ export default function CreateGroupPage() {
     try {
       setError('');
       setLoading(true);
-      const result = await groupsAPI.createGroup(name, description);
+      const result = await groupsAPI.createGroup(name, description, currency);
       
       if (result.success) {
         navigate(`/group/${result.data.id}`);
@@ -36,7 +39,7 @@ export default function CreateGroupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
@@ -58,7 +61,7 @@ export default function CreateGroupPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow-sm p-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-6">Create New Group</h1>
 
@@ -100,6 +103,27 @@ export default function CreateGroupPage() {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Currency *
+              </label>
+              <select
+                value={currency}
+                onChange={(event) => setCurrency(event.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                {CURRENCY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-gray-500 mt-1">
+                Choose the currency this group will use for expenses, payments, and settlements.
+              </p>
+            </div>
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800">
                 <strong>Note:</strong> You will be the admin of this group. You can add members, track expenses, and manage the group settings.
@@ -125,6 +149,7 @@ export default function CreateGroupPage() {
           </form>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

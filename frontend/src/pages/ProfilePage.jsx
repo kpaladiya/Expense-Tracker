@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, CheckCircle2, UserCircle2 } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
+import SiteFooter from '../components/SiteFooter';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -63,7 +64,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white shadow-sm">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
           <button
@@ -76,7 +77,7 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow-sm p-8">
           <div className="flex items-center gap-3 mb-6">
             <UserCircle2 className="w-10 h-10 text-blue-600" />
@@ -170,6 +171,7 @@ export default function ProfilePage() {
           </form>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

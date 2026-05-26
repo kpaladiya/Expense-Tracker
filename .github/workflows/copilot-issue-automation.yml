@@ -1,0 +1,48 @@
+name: Copilot issue automation
+
+on:
+  issues:
+    types:
+      - labeled
+
+jobs:
+  copilot-issue-flow:
+    if: github.event.label.name == 'copilot:auto'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Assign issue to Copilot coding agent
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.payload.issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const copilotAssignee = 'copilot-swe-agent[bot]';
+
+            try {
+              await github.rest.issues.addAssignees({
+                owner,
+                repo,
+                issue_number,
+                assignees: [copilotAssignee]
+              });
+              core.info(`Assigned ${copilotAssignee} to #${issue_number}`);
+            } catch (error) {
+              core.warning(`Could not assign ${copilotAssignee}: ${error.message}`);
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: [
+                '🤖 Copilot automation started.',
+                '',
+                'This issue was labeled `copilot:auto`, so Copilot has been assigned to implement it and open a pull request.',
+                '',
+                'After the PR opens, comment with `@copilot` on the PR thread to request follow-up changes.'
+              ].join('\n')
+            });
