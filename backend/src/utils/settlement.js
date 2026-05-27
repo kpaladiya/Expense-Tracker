@@ -6,6 +6,14 @@ function roundCurrency(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
+function toCents(value) {
+  return Math.round(Number(value || 0) * 100);
+}
+
+function fromCents(value) {
+  return roundCurrency(Number(value || 0) / 100);
+}
+
 export function normalizeMonth(value) {
   if (!value || typeof value !== 'string') {
     return null;
@@ -135,6 +143,31 @@ function buildTransferSuggestions(memberBalances) {
   return suggestions;
 }
 
+function splitAmountAcrossMembers(totalCents, members) {
+  if (members.length === 0) {
+    return [];
+  }
+
+  const sign = totalCents >= 0 ? 1 : -1;
+  const absoluteTotal = Math.abs(totalCents);
+  const base = Math.floor(absoluteTotal / members.length);
+  let remainder = absoluteTotal % members.length;
+
+  const sortedMembers = [...members].sort((left, right) => left.id.localeCompare(right.id));
+
+  return sortedMembers.map((member) => {
+    const share = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) {
+      remainder -= 1;
+    }
+
+    return {
+      member,
+      shareCents: sign * share
+    };
+  });
+}
+
 async function getMembershipPeriods(groupId) {
   return all(
     `SELECT gmp.id, gmp.group_id, gmp.user_id, gmp.started_at, gmp.ended_at,
@@ -230,11 +263,11 @@ async function calculateMonthlySettlement(groupId, month) {
   const expenses = await getExpensesForMonth(groupId, month);
   const payments = await getPaymentsForMonth(groupId, month);
   const memberBalances = new Map();
-  let totalExpenses = 0;
-  let totalReceived = 0;
+  let totalExpensesCents = 0;
+  let totalReceivedCents = 0;
 
   expenses.forEach((expense) => {
-    const amount = Number(expense.amount || 0);
+    const amountCents = toCents(expense.amount);
     const activeMembers = getActiveMembersForDate(periods, expense.expense_date, memberBalances);
 
     if (activeMembers.length === 0) {
@@ -247,21 +280,21 @@ async function calculateMonthlySettlement(groupId, month) {
       return;
     }
 
-    const share = amount / activeMembers.length;
-    totalExpenses += amount;
+    const shares = splitAmountAcrossMembers(amountCents, activeMembers);
+    totalExpensesCents += amountCents;
 
-    activeMembers.forEach((member) => {
-      member.profitShare -= share;
-      member.balance -= share;
+    shares.forEach(({ member, shareCents }) => {
+      member.profitShare -= shareCents;
+      member.balance -= shareCents;
     });
 
-    actor.amountSpent += amount;
-    actor.netAfterOwnActivity -= amount;
-    actor.balance += amount;
+    actor.amountSpent += amountCents;
+    actor.netAfterOwnActivity -= amountCents;
+    actor.balance += amountCents;
   });
 
   payments.forEach((payment) => {
-    const amount = Number(payment.amount || 0);
+    const amountCents = toCents(payment.amount);
     const activeMembers = getActiveMembersForDate(periods, payment.payment_date, memberBalances);
 
     if (activeMembers.length === 0) {
@@ -274,17 +307,17 @@ async function calculateMonthlySettlement(groupId, month) {
       return;
     }
 
-    const share = amount / activeMembers.length;
-    totalReceived += amount;
+    const shares = splitAmountAcrossMembers(amountCents, activeMembers);
+    totalReceivedCents += amountCents;
 
-    activeMembers.forEach((member) => {
-      member.profitShare += share;
-      member.balance += share;
+    shares.forEach(({ member, shareCents }) => {
+      member.profitShare += shareCents;
+      member.balance += shareCents;
     });
 
-    actor.amountReceived += amount;
-    actor.netAfterOwnActivity += amount;
-    actor.balance -= amount;
+    actor.amountReceived += amountCents;
+    actor.netAfterOwnActivity += amountCents;
+    actor.balance -= amountCents;
   });
 
   const balances = [...memberBalances.values()]
@@ -297,23 +330,24 @@ async function calculateMonthlySettlement(groupId, month) {
     .sort((left, right) => left.name.localeCompare(right.name))
     .map((member) => ({
       ...member,
-      amountSpent: roundCurrency(member.amountSpent),
-      amountReceived: roundCurrency(member.amountReceived),
-      netAfterOwnActivity: roundCurrency(member.netAfterOwnActivity),
-      profitShare: roundCurrency(member.profitShare),
-      balance: roundCurrency(member.balance)
+      amountSpent: fromCents(member.amountSpent),
+      amountReceived: fromCents(member.amountReceived),
+      netAfterOwnActivity: fromCents(member.netAfterOwnActivity),
+      profitShare: fromCents(member.profitShare),
+      balance: fromCents(member.balance)
     }));
 
-  const netProfit = totalReceived - totalExpenses;
+  const netProfitCents = totalReceivedCents - totalExpensesCents;
   const numberOfMembers = balances.length;
-  const perPersonShare = numberOfMembers > 0 ? netProfit / numberOfMembers : 0;
+  const netProfit = fromCents(netProfitCents);
+  const perPersonShare = numberOfMembers > 0 ? roundCurrency(netProfit / numberOfMembers) : 0;
 
   return {
     month,
-    totalReceived: roundCurrency(totalReceived),
-    totalExpenses: roundCurrency(totalExpenses),
-    netProfit: roundCurrency(netProfit),
-    perPersonShare: roundCurrency(perPersonShare),
+    totalReceived: fromCents(totalReceivedCents),
+    totalExpenses: fromCents(totalExpensesCents),
+    netProfit,
+    perPersonShare,
     numberOfMembers,
     memberBalances: balances,
     transferSuggestions: buildTransferSuggestions(balances)
@@ -326,12 +360,12 @@ function aggregateSettlements(monthlySettlements) {
   }
 
   const memberBalances = new Map();
-  let totalReceived = 0;
-  let totalExpenses = 0;
+  let totalReceivedCents = 0;
+  let totalExpensesCents = 0;
 
   monthlySettlements.forEach((settlement) => {
-    totalReceived += Number(settlement.totalReceived || 0);
-    totalExpenses += Number(settlement.totalExpenses || 0);
+    totalReceivedCents += toCents(settlement.totalReceived);
+    totalExpensesCents += toCents(settlement.totalExpenses);
 
     settlement.memberBalances.forEach((member) => {
       if (!memberBalances.has(member.id)) {
@@ -346,11 +380,11 @@ function aggregateSettlements(monthlySettlements) {
       }
 
       const snapshot = memberBalances.get(member.id);
-      snapshot.amountSpent += Number(member.amountSpent || 0);
-      snapshot.amountReceived += Number(member.amountReceived || 0);
-      snapshot.netAfterOwnActivity += Number(member.netAfterOwnActivity || 0);
-      snapshot.profitShare += Number(member.profitShare || 0);
-      snapshot.balance += Number(member.balance || 0);
+      snapshot.amountSpent += toCents(member.amountSpent);
+      snapshot.amountReceived += toCents(member.amountReceived);
+      snapshot.netAfterOwnActivity += toCents(member.netAfterOwnActivity);
+      snapshot.profitShare += toCents(member.profitShare);
+      snapshot.balance += toCents(member.balance);
     });
   });
 
@@ -358,20 +392,21 @@ function aggregateSettlements(monthlySettlements) {
     .sort((left, right) => left.name.localeCompare(right.name))
     .map((member) => ({
       ...member,
-      amountSpent: roundCurrency(member.amountSpent),
-      amountReceived: roundCurrency(member.amountReceived),
-      netAfterOwnActivity: roundCurrency(member.netAfterOwnActivity),
-      profitShare: roundCurrency(member.profitShare),
-      balance: roundCurrency(member.balance)
+      amountSpent: fromCents(member.amountSpent),
+      amountReceived: fromCents(member.amountReceived),
+      netAfterOwnActivity: fromCents(member.netAfterOwnActivity),
+      profitShare: fromCents(member.profitShare),
+      balance: fromCents(member.balance)
     }));
 
-  const netProfit = totalReceived - totalExpenses;
+  const netProfitCents = totalReceivedCents - totalExpensesCents;
+  const netProfit = fromCents(netProfitCents);
   const numberOfMembers = balances.length;
 
   return {
-    totalReceived: roundCurrency(totalReceived),
-    totalExpenses: roundCurrency(totalExpenses),
-    netProfit: roundCurrency(netProfit),
+    totalReceived: fromCents(totalReceivedCents),
+    totalExpenses: fromCents(totalExpensesCents),
+    netProfit,
     perPersonShare: roundCurrency(numberOfMembers > 0 ? netProfit / numberOfMembers : 0),
     numberOfMembers,
     memberBalances: balances,
