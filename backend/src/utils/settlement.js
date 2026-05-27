@@ -1,6 +1,5 @@
 import { all, get } from '../db/index.js';
 import { formatCurrency } from './currency.js';
-import { toDateOnly } from './membership.js';
 
 function roundCurrency(value) {
   return Math.round(Number(value || 0) * 100) / 100;
@@ -27,24 +26,6 @@ export function getMonthFromDate(value) {
   return normalizeMonth(value);
 }
 
-function getMonthStart(month) {
-  return `${month}-01`;
-}
-
-function getNextMonth(month) {
-  const [year, monthNumber] = month.split('-').map(Number);
-  const nextDate = new Date(year, monthNumber, 1);
-  return `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function isPeriodActiveOnDate(period, date) {
-  const normalizedDate = toDateOnly(date);
-  const startDate = toDateOnly(period.started_at);
-  const endDate = period.ended_at ? toDateOnly(period.ended_at) : null;
-
-  return startDate <= normalizedDate && (!endDate || endDate >= normalizedDate);
-}
-
 function createMemberSnapshot(member) {
   return {
     id: member.user_id,
@@ -58,25 +39,12 @@ function createMemberSnapshot(member) {
   };
 }
 
-function ensureMemberBalance(memberBalances, membershipPeriod) {
-  if (!memberBalances.has(membershipPeriod.user_id)) {
-    memberBalances.set(membershipPeriod.user_id, createMemberSnapshot(membershipPeriod));
+function ensureMemberBalance(memberBalances, user) {
+  if (!memberBalances.has(user.user_id)) {
+    memberBalances.set(user.user_id, createMemberSnapshot(user));
   }
 
-  return memberBalances.get(membershipPeriod.user_id);
-}
-
-function getActiveMembersForDate(periods, date, memberBalances) {
-  const activeMembers = new Map();
-
-  periods.forEach((period) => {
-    if (isPeriodActiveOnDate(period, date)) {
-      const snapshot = ensureMemberBalance(memberBalances, period);
-      activeMembers.set(period.user_id, snapshot);
-    }
-  });
-
-  return [...activeMembers.values()];
+  return memberBalances.get(user.user_id);
 }
 
 function createEmptySettlement() {
@@ -168,15 +136,29 @@ function splitAmountAcrossMembers(totalCents, members) {
   });
 }
 
-async function getMembershipPeriods(groupId) {
+async function getCurrentGroupMembers(groupId) {
   return all(
-    `SELECT gmp.id, gmp.group_id, gmp.user_id, gmp.started_at, gmp.ended_at,
-            u.name, u.email
-     FROM group_membership_periods gmp
-     JOIN users u ON u.id = gmp.user_id
-     WHERE gmp.group_id = ?
-     ORDER BY datetime(gmp.started_at) ASC`,
+    `SELECT gm.group_id, gm.user_id, u.name, u.email
+     FROM group_members gm
+     JOIN users u ON u.id = gm.user_id
+     WHERE gm.group_id = ?
+     ORDER BY LOWER(u.name) ASC`,
     [groupId]
+  );
+}
+
+async function getUsersByIds(userIds) {
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const placeholders = userIds.map(() => '?').join(', ');
+
+  return all(
+    `SELECT id, name, email
+     FROM users
+     WHERE id IN (${placeholders})`,
+    userIds
   );
 }
 
@@ -259,28 +241,54 @@ async function getSettledMonthMap(groupId) {
 }
 
 async function calculateMonthlySettlement(groupId, month) {
-  const periods = await getMembershipPeriods(groupId);
-  const expenses = await getExpensesForMonth(groupId, month);
-  const payments = await getPaymentsForMonth(groupId, month);
+  const [currentMembers, expenses, payments] = await Promise.all([
+    getCurrentGroupMembers(groupId),
+    getExpensesForMonth(groupId, month),
+    getPaymentsForMonth(groupId, month)
+  ]);
   const memberBalances = new Map();
+  const currentMemberIds = new Set(currentMembers.map((member) => member.user_id));
+  const actorIds = new Set([
+    ...expenses.map((expense) => expense.user_id),
+    ...payments.map((payment) => payment.user_id)
+  ]);
+
+  currentMembers.forEach((member) => {
+    ensureMemberBalance(memberBalances, member);
+  });
+
+  const missingActorIds = [...actorIds].filter((userId) => !memberBalances.has(userId));
+  const missingActors = missingActorIds.length
+    ? await all(
+        `SELECT id, name, email
+         FROM users
+         WHERE id IN (${missingActorIds.map(() => '?').join(', ')})`,
+        missingActorIds
+      )
+    : [];
+
+  missingActors.forEach((actor) => {
+    ensureMemberBalance(memberBalances, {
+      user_id: actor.id,
+      name: actor.name,
+      email: actor.email
+    });
+  });
+
+  const settlementMembers = [...currentMemberIds]
+    .map((memberId) => memberBalances.get(memberId))
+    .filter(Boolean);
   let totalExpensesCents = 0;
   let totalReceivedCents = 0;
 
   expenses.forEach((expense) => {
     const amountCents = toCents(expense.amount);
-    const activeMembers = getActiveMembersForDate(periods, expense.expense_date, memberBalances);
-
-    if (activeMembers.length === 0) {
+    if (settlementMembers.length === 0) {
       return;
     }
 
     const actor = memberBalances.get(expense.user_id);
-
-    if (!actor) {
-      return;
-    }
-
-    const shares = splitAmountAcrossMembers(amountCents, activeMembers);
+    const shares = splitAmountAcrossMembers(amountCents, settlementMembers);
     totalExpensesCents += amountCents;
 
     shares.forEach(({ member, shareCents }) => {
@@ -288,26 +296,21 @@ async function calculateMonthlySettlement(groupId, month) {
       member.balance -= shareCents;
     });
 
-    actor.amountSpent += amountCents;
-    actor.netAfterOwnActivity -= amountCents;
-    actor.balance += amountCents;
+    if (actor) {
+      actor.amountSpent += amountCents;
+      actor.netAfterOwnActivity -= amountCents;
+      actor.balance += amountCents;
+    }
   });
 
   payments.forEach((payment) => {
     const amountCents = toCents(payment.amount);
-    const activeMembers = getActiveMembersForDate(periods, payment.payment_date, memberBalances);
-
-    if (activeMembers.length === 0) {
+    if (settlementMembers.length === 0) {
       return;
     }
 
     const actor = memberBalances.get(payment.user_id);
-
-    if (!actor) {
-      return;
-    }
-
-    const shares = splitAmountAcrossMembers(amountCents, activeMembers);
+    const shares = splitAmountAcrossMembers(amountCents, settlementMembers);
     totalReceivedCents += amountCents;
 
     shares.forEach(({ member, shareCents }) => {
@@ -315,18 +318,14 @@ async function calculateMonthlySettlement(groupId, month) {
       member.balance += shareCents;
     });
 
-    actor.amountReceived += amountCents;
-    actor.netAfterOwnActivity += amountCents;
-    actor.balance -= amountCents;
+    if (actor) {
+      actor.amountReceived += amountCents;
+      actor.netAfterOwnActivity += amountCents;
+      actor.balance -= amountCents;
+    }
   });
 
-  const balances = [...memberBalances.values()]
-    .filter((member) =>
-      roundCurrency(member.amountSpent) !== 0 ||
-      roundCurrency(member.amountReceived) !== 0 ||
-      roundCurrency(member.profitShare) !== 0 ||
-      roundCurrency(member.balance) !== 0
-    )
+  const balances = settlementMembers
     .sort((left, right) => left.name.localeCompare(right.name))
     .map((member) => ({
       ...member,
@@ -338,7 +337,7 @@ async function calculateMonthlySettlement(groupId, month) {
     }));
 
   const netProfitCents = totalReceivedCents - totalExpensesCents;
-  const numberOfMembers = balances.length;
+  const numberOfMembers = settlementMembers.length;
   const netProfit = fromCents(netProfitCents);
   const perPersonShare = numberOfMembers > 0 ? roundCurrency(netProfit / numberOfMembers) : 0;
 
