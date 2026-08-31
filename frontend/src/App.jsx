@@ -1,8 +1,7 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './services/AuthContext';
 import LoginPage from './pages/LoginPage';
-import ActivateAccountPage from './pages/ActivateAccountPage';
 import DashboardPage from './pages/DashboardPage';
 import GroupDetailPage from './pages/GroupDetailPage';
 import CreateGroupPage from './pages/CreateGroupPage';
@@ -47,7 +46,6 @@ function AppRoutes() {
         path="/login"
         element={user ? <Navigate to="/" replace /> : <LoginPage />}
       />
-      <Route path="/activate" element={<ActivateAccountPage />} />
       <Route path="/terms" element={<InfoPage pageKey="terms" />} />
       <Route path="/privacy" element={<InfoPage pageKey="privacy" />} />
       <Route path="/help" element={<InfoPage pageKey="help" />} />
@@ -98,10 +96,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

@@ -1,0 +1,4 @@
+# Generate a long random value, for example: openssl rand -base64 48
+JWT_SECRET=replace-with-a-long-random-secret
+# Comma-separated Pages origins. Leave unset during local development.
+# ALLOWED_ORIGINS=https://your-account.github.io

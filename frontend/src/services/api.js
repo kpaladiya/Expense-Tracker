@@ -48,7 +48,7 @@ async function apiCall(endpoint, method = 'GET', data = null) {
       }
 
       if (response.status === 504) {
-        throw new Error('The server timed out while processing the request. Check SMTP settings and backend logs.');
+        throw new Error('The API timed out while processing the request. Try again shortly.');
       }
 
       throw new Error(`Unexpected server response (${response.status})`);
@@ -148,14 +148,8 @@ export const authAPI = {
   login: (email, password) =>
     apiCall('/auth/login', 'POST', { email, password }),
 
-  googleLogin: (credential) =>
-    apiCall('/auth/google', 'POST', { credential }),
-
   updateProfile: (data) =>
     apiCall('/auth/profile', 'PUT', data),
-
-  activateEmail: (token) =>
-    apiCall('/auth/activate', 'POST', { token }),
   
   logout: () =>
     apiCall('/auth/logout', 'POST'),
