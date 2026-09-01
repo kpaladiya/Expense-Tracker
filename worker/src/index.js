@@ -1,5 +1,5 @@
 const TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
-const PBKDF2_ITERATIONS = 310_000;
+const PBKDF2_ITERATIONS = 100_000;
 const encoder = new TextEncoder();
 
 const json = (body, status = 200, extra = {}) =>
